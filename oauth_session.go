@@ -22,6 +22,42 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type ScriptTokenSource struct {
+	Config   oauth2.Config
+	Username string
+	Password string
+	context  context.Context
+}
+
+var RedditEndpoint oauth2.Endpoint = oauth2.Endpoint{
+	TokenURL: "https://www.reddit.com/api/v1/access_token",
+	AuthURL:  "https://www.reddit.com/api/v1/authorize",
+}
+
+func NewScriptTokenSource(context context.Context, clientID, clientSecret, username, password string) *ScriptTokenSource {
+	return &ScriptTokenSource{
+		Config: oauth2.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			Endpoint:     RedditEndpoint,
+		},
+		Username: username,
+		Password: password,
+		context:  context,
+	}
+}
+
+func (src *ScriptTokenSource) Token() (*oauth2.Token, error) {
+	return src.Config.PasswordCredentialsToken(src.context, src.Username, src.Password)
+}
+
+var _ oauth2.TokenSource = &ScriptTokenSource{}
+
+type ScriptOAuthApp struct {
+	oauth2.Config
+	UserAgent string
+}
+
 // OAuthSession represents an OAuth session with reddit.com --
 // all authenticated API calls are methods bound to this type.
 type OAuthSession struct {
