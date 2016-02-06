@@ -18,40 +18,52 @@ import (
 
 	"github.com/beefsack/go-rate"
 	"github.com/google/go-querystring/query"
+	"github.com/kevinmgranger/requestmod"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
-type ScriptTokenSource struct {
-	Config   oauth2.Config
-	Username string
-	Password string
-	context  context.Context
-}
-
-var RedditEndpoint oauth2.Endpoint = oauth2.Endpoint{
+var RedditOAuthEndpoint oauth2.Endpoint = oauth2.Endpoint{
 	TokenURL: "https://www.reddit.com/api/v1/access_token",
 	AuthURL:  "https://www.reddit.com/api/v1/authorize",
 }
 
-func NewScriptTokenSource(context context.Context, clientID, clientSecret, username, password string) *ScriptTokenSource {
-	return &ScriptTokenSource{
-		Config: oauth2.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			Endpoint:     RedditEndpoint,
-		},
-		Username: username,
-		Password: password,
-		context:  context,
+// Always gets a client.
+func ClientFromContext(ctx context.Context) *http.Client {
+	if cli, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		return cli
 	}
+
+	return http.DefaultClient
 }
 
-func (src *ScriptTokenSource) Token() (*oauth2.Token, error) {
-	return src.Config.PasswordCredentialsToken(src.context, src.Username, src.Password)
+func NewUserAgentSetter(ctx context.Context, useragent string) *http.Client {
+	cli := ClientFromContext(ctx)
+	if useragent != "" {
+		cli.Transport = requestmod.NewTransport(cli.Transport, func(req *http.Request) error {
+			req.Header.Set("User-Agent", useragent)
+			return nil
+		})
+	}
+	return cli
 }
 
-var _ oauth2.TokenSource = &ScriptTokenSource{}
+func WithUserAgentSetter(ctx context.Context, useragent string) context.Context {
+	if useragent != "" {
+			return context.WithValue(ctx, oauth2.HTTPClient, NewUserAgentSetter(ctx, useragent))
+	}
+	return ctx
+}
+
+func NewClientCredentialsConfig(username, password string) clientcredentials.Config {
+	return clientcredentials.Config{
+			ClientID:     username,
+			ClientSecret: password,
+			TokenURL:     RedditOAuthEndpoint.TokenURL,
+		}
+}
+
 
 type ScriptOAuthApp struct {
 	oauth2.Config
