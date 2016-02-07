@@ -7,7 +7,6 @@ import (
 )
 
 
-
 func WithClient(ctx context.Context, client *http.Client) context.Context {
 	return context.WithValue(ctx, oauth2.HTTPClient, client)
 }
@@ -32,8 +31,6 @@ func WithUserAgent(ctx context.Context, useragent string) context.Context {
 	return WithClient(ctx, cli)
 }
 
-type Client http.Client
-
 type HttpClient interface {
 	Do(req *http.Request) (resp *http.Response, err error)
 }
@@ -42,8 +39,31 @@ type ContextClient interface {
 	DoWithContext(ctx context.Context, req *http.Request) (resp *http.Response, err error)
 }
 
+type Client http.Client
+
+func (cli *Client) DoWithContext(ctx context.Context, req *http.Request) (resp *http.Response, err error)
+	return contextRequest(cli, ctx, req)
+}
+
+func (cli *Client) CarriedContext(ctx context.Context) CarriedContextClient {
+	return CarriedContextClient{ *cli, ctx }
+}
+
+func (cli *Client) NoContext() CarriedContextClient {
+	return cli.CarriedContext(context.TODO())
+}
+
+type CarriedContextClient struct {
+	Client
+	Context context.Context
+}
+
+func (cli *CarriedContextClient) Do(req *http.Request) (res *http.Response, err error) {
+	return cli.DoWithContext(cli.Context, req)
+}
+
 // to easily wrap a non-context supporting client
-func contextRequest(cli Client, ctx context.Context, req *http.Request) (resp *http.Response, err error) {
+func contextRequest(cli HttpClient, ctx context.Context, req *http.Request) (resp *http.Response, err error) {
 	type httpresult struct {
 		resp *http.Response
 		err error
@@ -56,6 +76,7 @@ func contextRequest(cli Client, ctx context.Context, req *http.Request) (resp *h
 		case res := <- reschan:
 			return res.resp, res.err
 		case <-ctx.Done():
+			// TODO: cancel request here?
 			return nil, ctx.Err()
 	}
 }
