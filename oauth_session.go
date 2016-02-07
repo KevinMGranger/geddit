@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"log"
 
 	"github.com/beefsack/go-rate"
 	"github.com/kevinmgranger/requestmod"
@@ -23,80 +24,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type ScriptOAuthConfig struct {
-	Config oauth2.Config
-	Username string
-	Password string
-	Context context.Context
-}
-
-func (src *ScriptOAuthConfig) Token() (*oauth2.Token, error) {
-	return src.Config.PasswordCredentialsToken(src.Context, src.Username, src.Password)
-}
-
-func (src *ScriptOAuthConfig) TokenSource() oauth2.TokenSource {
-	return oauth2.ReuseTokenSource(nil, src)
-}
-
-func (src *ScriptOAuthConfig) Client() *http.Client {
-	return oauth2.NewClient(src.Context, src.TokenSource())
-}
 	
 var RedditEndpoint = oauth2.Endpoint{
 	TokenURL: "https://www.reddit.com/api/v1/access_token",
 	AuthURL:  "https://www.reddit.com/api/v1/authorize",
 }
 
-type Client struct {
-	Base *http.Client
-}
-
-func WithClient(ctx context.Context, client *http.Client) context.Context {
-	return context.WithValue(ctx, oauth2.HTTPClient, client)
-}
-
-func WithUserAgent(ctx context.Context, useragent string) context.Context {
-	// TODO: copy, don't modify client
-	cli := ClientFromContext(ctx)
-	cli.Transport = requestmod.NewTransport(cli.Transport, func(req *http.Request) error {
-		req.Header.Set("User-Agent", useragent)
-		return nil
-	})
-	return WithClient(ctx, cli)
-}
-	
-func (cli *Client) Do(ctx context.Context, req *http.Request) (resp *http.Response, err error) {
-	type httpresult struct {
-		resp *http.Response
-		err error
-	}
-	reschan := make(chan httpresult, 1)
-
-	go func() { res, err := cli.Base.Do(req); reschan <- httpresult{ res, err } }()
-
-	select {
-		case res := <- reschan:
-			return res.resp, res.err
-		case <-ctx.Done():
-			return nil, ctx.Err()
-	}
-}
-
-//TODO: warn about non-cancelable transport (won't warn when using timeout)
-// Always gets a client.
-func ClientFromContext(ctx context.Context) *http.Client {
-	if cli, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
-		return cli
-	}
-
-	return http.DefaultClient
-}
-
-
-type ScriptOAuthApp struct {
-	oauth2.Config
-	UserAgent string
-}
 
 // OAuthSession represents an OAuth session with reddit.com --
 // all authenticated API calls are methods bound to this type.
@@ -110,6 +43,7 @@ type OAuthSession struct {
 	ctx          context.Context
 	throttle     *rate.RateLimiter
 }
+
 
 // NewLoginSession creates a new session for those who want to log into a
 // reddit account via OAuth.
