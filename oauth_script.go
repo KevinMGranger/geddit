@@ -36,6 +36,6 @@ func (src *ScriptOAuthConfig) TokenSource() oauth2.TokenSource {
 	return oauth2.ReuseTokenSource(nil, src)
 }
 
-func (src *ScriptOAuthConfig) Client() *Client {
-	return oauth2.NewClient(src.Context, src.TokenSource())
+func (src *ScriptOAuthConfig) Client() Client {
+	return Client{ oauth2.NewClient(src.Context, src.TokenSource()) }
 }

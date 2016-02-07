@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"log"
+//	"log"
 
 	"github.com/beefsack/go-rate"
-	"github.com/kevinmgranger/requestmod"
+//	"github.com/kevinmgranger/requestmod"
 	"github.com/google/go-querystring/query"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
@@ -43,7 +43,6 @@ type OAuthSession struct {
 	ctx          context.Context
 	throttle     *rate.RateLimiter
 }
-
 
 // NewLoginSession creates a new session for those who want to log into a
 // reddit account via OAuth.

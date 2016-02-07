@@ -2,8 +2,12 @@ package geddit
 
 import (
 	"net/http"
+	"io/ioutil"
+	"encoding/json"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+
+	"github.com/kevinmgranger/requestmod"
 )
 
 
@@ -21,49 +25,21 @@ func ClientFromContext(ctx context.Context) *http.Client {
 	return http.DefaultClient
 }
 
-func WithUserAgent(ctx context.Context, useragent string) context.Context {
-	// TODO: copy, don't modify client
-	cli := ClientFromContext(ctx)
+func ClientSetUserAgent(cli *http.Client, useragent string) {
 	cli.Transport = requestmod.NewTransport(cli.Transport, func(req *http.Request) error {
 		req.Header.Set("User-Agent", useragent)
 		return nil
 	})
-	return WithClient(ctx, cli)
 }
 
-type HttpClient interface {
-	Do(req *http.Request) (resp *http.Response, err error)
+type Client struct {
+	*http.Client
 }
 
-type ContextClient interface {
-	DoWithContext(ctx context.Context, req *http.Request) (resp *http.Response, err error)
-}
-
-type Client http.Client
-
-func (cli *Client) DoWithContext(ctx context.Context, req *http.Request) (resp *http.Response, err error)
-	return contextRequest(cli, ctx, req)
-}
-
-func (cli *Client) CarriedContext(ctx context.Context) CarriedContextClient {
-	return CarriedContextClient{ *cli, ctx }
-}
-
-func (cli *Client) NoContext() CarriedContextClient {
-	return cli.CarriedContext(context.TODO())
-}
-
-type CarriedContextClient struct {
-	Client
-	Context context.Context
-}
-
-func (cli *CarriedContextClient) Do(req *http.Request) (res *http.Response, err error) {
-	return cli.DoWithContext(cli.Context, req)
-}
+type NoCtxClient Client
 
 // to easily wrap a non-context supporting client
-func contextRequest(cli HttpClient, ctx context.Context, req *http.Request) (resp *http.Response, err error) {
+func contextRequest(cli *Client, ctx context.Context, req *http.Request) (resp *http.Response, err error) {
 	type httpresult struct {
 		resp *http.Response
 		err error
@@ -81,20 +57,18 @@ func contextRequest(cli HttpClient, ctx context.Context, req *http.Request) (res
 	}
 }
 
-func jsonResponse(cli ContextClient, ctx context.Context, req *http.Request, res interface{}) error {
-	resp, err := cli.DoWithContext(ctx, req)
+func jsonResponse(cli *Client, ctx context.Context, req *http.Request, res interface{}) (err error) {
+	resp, err := contextRequest(cli, ctx, req)
 	if err != nil {
-		return err
+		return
 	}
 
 	bod, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	if err != nil {
-		return err
+		return
 	}
 
 	err = json.Unmarshal(bod, res)
-	if err != nil {
-		return err
-	}
+	return
 }
